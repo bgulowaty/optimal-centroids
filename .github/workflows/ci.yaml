@@ -14,10 +14,14 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
-      - run: pipx install poetry@${{ matrix.poetry-version }}
+      - run: pipx install poetry==${{ matrix.poetry-version }}
       - uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'poetry'
+      - uses: actions/cache@v3
+        with:
+          path: ./.venv/  # what we cache: the virtualenv
+          key: ${{ runner.os }}-venv-${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock') }}
       - run: poetry install
       - run: poetry run pytest .

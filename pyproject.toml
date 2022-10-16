@@ -1,0 +1,32 @@
+[tool.poetry]
+name = "optimal-centroids"
+version = "0.1.0"
+description = "Search based framework for transparent non-overlapping ensemble models"
+authors = ["Bogdan Gulowaty <b.gulowaty@gmail.com>"]
+license = "GPL"
+
+packages = [
+    { include = "optimalcentroids" },
+]
+
+
+[tool.pytest.ini_options]
+python_files = "*.py"
+norecursedirs=["libs"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+x-to-rules = {path = "libs/rules", develop = true}
+python-box = "^6.0.2"
+more-itertools = "^8.14.0"
+pymoo = "^0.6.0"
+
+[tool.poetry.dev-dependencies]
+
+[tool.poetry.group.dev.dependencies]
+jupyterlab = "^3.4.8"
+mlflow = "^1.29.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

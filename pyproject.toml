@@ -9,23 +9,28 @@ packages = [
     { include = "optimalcentroids" },
 ]
 
-
 [tool.pytest.ini_options]
 python_files = "*.py"
 norecursedirs=["libs"]
 
 [tool.poetry.dependencies]
 python = "^3.10"
-x-to-rules = {path = "libs/rules", develop = true}
-python-box = "^6.0.2"
-more-itertools = "^8.14.0"
-pymoo = "^0.6.0"
+python-box = "^7.1.1"
+mlflow = "^2.8.1"
+ml-utils = {path = "../ml-utils", develop = true}
+more-itertools = "^10.1.0"
+pymoo = "^0.6.1.1"
+datasetz = {path = "../datasets", develop = true}
+numba = "^0.59.1"
+problexity = {path = "../problexity", develop = true}
+torch = "^2.3.0"
 
 [tool.poetry.dev-dependencies]
 
 [tool.poetry.group.dev.dependencies]
 jupyterlab = "^3.4.8"
-mlflow = "^1.29.0"
+line-profiler = "^4.1.2"
+pytest = "^8.2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

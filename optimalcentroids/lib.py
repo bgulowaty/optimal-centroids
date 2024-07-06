@@ -5,7 +5,7 @@ from more_itertools import grouper
 
 def nn_wrapper(nn):
     return Box({
-        "predict": lambda x: nn.kneighbors(x, n_neighbors=1, return_distance=False)[:, 0]
+        "predict": lambda x: nn.kneighbors(x, return_distance=False)
     })
 
 

@@ -11,15 +11,16 @@ from sklearn.neighbors import NearestNeighbors
 from toolz.curried import pipe
 
 from optimalcentroids.lib import nn_wrapper, individual_to_centroid
+from box import Box
 
 
 def create_estimator(centroids, rf, x):
 
-    space_classifier = NearestNeighbors()
+    space_classifier = NearestNeighbors(n_neighbors=len(centroids))
     space_classifier.fit(centroids)
     wrapped_space_classifier = nn_wrapper(space_classifier)
 
-    space_preds = wrapped_space_classifier.predict(x)
+    space_preds = wrapped_space_classifier.predict(x)[:, 0]
 
     best_tree_by_centroid = {}
     for idx, centroid in enumerate(centroids):
@@ -111,7 +112,6 @@ class OptimalCentroidExplainer(ElementwiseProblem):
 class OptimalCentroidExplainerWithTreeSelection(ElementwiseProblem):
     def __init__(self, rf, n_clusters, x_train, y_train, *args, **kwargs):
         n_dim = x_train.shape[1]
-
         super().__init__(
             n_var=n_clusters * n_dim + n_clusters,
             n_obj=2,
@@ -169,7 +169,7 @@ class OptimalCentroidExplainerWithTreeSelection(ElementwiseProblem):
 
 def create_estimator_tree(centroids, rf, trees):
 
-    space_classifier = NearestNeighbors()
+    space_classifier = NearestNeighbors(n_neighbors=len(centroids))
     space_classifier.fit(centroids)
     wrapped_space_classifier = nn_wrapper(space_classifier)
 
@@ -200,10 +200,18 @@ def run(rf, n_clf, X, y, pop_size=10, n_gen=10):
     min_complexity_idx = np.argmin(res.F[:, 1], axis=0)
     max_acc_idx = np.argmin(res.F[:, 0], axis=0)
 
-    return {
-        "min_complexity_model": problem.build_model(res.X[min_complexity_idx]),
-        "max_accuracy_model": problem.build_model(res.X[max_acc_idx])
-    }
+    return Box({
+        "min_complexity": {
+            "model": problem.build_model(res.X[min_complexity_idx]),
+            "complexity": res.F[min_complexity_idx, 1],
+            "train_acc": 1 - res.F[min_complexity_idx, 0]
+        },
+        "max_accuracy": {
+            "model": problem.build_model(res.X[max_acc_idx]),
+            "complexity": res.F[max_acc_idx, 1],
+            "train_acc": 1 - res.F[max_acc_idx, 0]
+        }
+    })
 
 def run_tree(rf, n_clf, X, y, pop_size=10, n_gen=10):
     problem = OptimalCentroidExplainerWithTreeSelection(rf, n_clf, X, y)
@@ -220,9 +228,17 @@ def run_tree(rf, n_clf, X, y, pop_size=10, n_gen=10):
     min_complexity_idx = np.argmin(res.F[:, 1], axis=0)
     max_acc_idx = np.argmin(res.F[:, 0], axis=0)
 
-    return {
-        "min_complexity_model": problem.build_model(res.X[min_complexity_idx]),
-        "max_accuracy_model": problem.build_model(res.X[max_acc_idx])
-    }
+    return Box({
+        "min_complexity": {
+            "model": problem.build_model(res.X[min_complexity_idx]),
+            "complexity": res.F[min_complexity_idx, 1],
+            "train_acc": 1 - res.F[min_complexity_idx, 0]
+        },
+        "max_accuracy": {
+            "model": problem.build_model(res.X[max_acc_idx]),
+            "complexity": res.F[max_acc_idx, 1],
+            "train_acc": 1 - res.F[max_acc_idx, 0]
+        }
+    })
 
 

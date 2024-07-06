@@ -9,6 +9,7 @@ from sklearn.model_selection import cross_validate, RepeatedKFold
 from sklearn.neighbors import NearestNeighbors
 from sklearn.tree import DecisionTreeClassifier
 from toolz.curried import pipe
+from mlflow import MlflowClient
 
 from mlutils.scikit.competence_region_ensemble import SimpleCompetenceRegionEnsembleV2
 
@@ -26,18 +27,18 @@ DEFAULT_PARAMS = {
 }
 
 
-def create_estimator(centroids, depths):
+def create_estimator(centroids, depths, tree_params = dict()):
     activated_trees_indices = np.nonzero(depths)[0]
 
     active_centroids = centroids[activated_trees_indices]
     active_depths = depths[activated_trees_indices]
 
-    space_classifier = NearestNeighbors()
+    space_classifier = NearestNeighbors(n_neighbors=len(active_centroids))
     space_classifier.fit(active_centroids)
 
     model = SimpleCompetenceRegionEnsembleV2(
         nn_wrapper(space_classifier),
-        {label: DecisionTreeClassifier(max_depth=depth, random_state=42) for label, depth in enumerate(active_depths)}
+        {label: DecisionTreeClassifier(max_depth=depth, random_state=42, **tree_params) for label, depth in enumerate(active_depths)}
     )
 
     return model
@@ -45,7 +46,7 @@ def create_estimator(centroids, depths):
 
 class OptimalCentroidPositionProblem(ElementwiseProblem):
 
-    def __init__(self, n_trees, x_train, y_train, max_tree_depth, params, **kwargs):
+    def __init__(self, n_trees, x_train, y_train, max_tree_depth, params, tree_params, **kwargs):
         n_dim = x_train.shape[1]
 
         super().__init__(
@@ -63,6 +64,7 @@ class OptimalCentroidPositionProblem(ElementwiseProblem):
         self.y_train = y_train
         self.n_dim = n_dim
         self.max_tree_depth = max_tree_depth
+        self.tree_params = tree_params
 
     def _evaluate(self, individual, out, *args, **kwargs):
         n_coordinates_in_individual = self.n_dim * self.n_trees
@@ -84,7 +86,7 @@ class OptimalCentroidPositionProblem(ElementwiseProblem):
         if np.all(tree_depths == 0):
             out["F"] = 1
         else:
-            model = create_estimator(individual_as_centroids, tree_depths)
+            model = create_estimator(individual_as_centroids, tree_depths, self.tree_params)
 
             skf = RepeatedKFold(n_splits=self.params['cv'], n_repeats=self.params['cv_repeats'], random_state=42)
             scores = cross_validate(model, self.x_train, self.y_train, n_jobs=self.params['n_jobs'], scoring='accuracy',
@@ -96,7 +98,7 @@ class OptimalCentroidPositionProblem(ElementwiseProblem):
             out["F"] = 1 - scores['test_score'].mean()
 
 
-def run(x_train, y_train, n_trees, max_tree_depth, pop_size, n_gen, pymoo_elementwise_runner=LoopedElementwiseEvaluation()):
+def run(x_train, y_train, n_trees, max_tree_depth, pop_size, n_gen, mlflow_client: MlflowClient = None, run_id = None, pymoo_elementwise_runner=LoopedElementwiseEvaluation(), tree_params = {}):
     params = Box({**DEFAULT_PARAMS, **{
         'x_train': x_train,
         'n_trees': n_trees,
@@ -105,7 +107,7 @@ def run(x_train, y_train, n_trees, max_tree_depth, pop_size, n_gen, pymoo_elemen
         'max_depth': max_tree_depth
     }})
 
-    problem = OptimalCentroidPositionProblem(n_trees, x_train, y_train, max_tree_depth, params, elementwise_runner=pymoo_elementwise_runner)
+    problem = OptimalCentroidPositionProblem(n_trees, x_train, y_train, max_tree_depth, params, tree_params, elementwise_runner=pymoo_elementwise_runner)
 
     res = minimize(problem,
                    GA(
@@ -114,7 +116,7 @@ def run(x_train, y_train, n_trees, max_tree_depth, pop_size, n_gen, pymoo_elemen
                        seed=42,
                        eliminate_duplicates=True
                    ),
-                   ("n_gen", 10),
+                   ("n_gen", n_gen),
                    verbose=True,
                    save_history=True,
                    seed=42)
@@ -123,6 +125,9 @@ def run(x_train, y_train, n_trees, max_tree_depth, pop_size, n_gen, pymoo_elemen
         pareto_front = [res.X]
     else:
         pareto_front = res.X
+
+    if mlflow_client is not None:
+        mlflow_client.log_table(run_id=run_id, data={'convergence' : np.array([e.opt[0].F for e in res.history]).flatten()}, artifact_file="convergence_history.json")
 
     n_dim = problem.n_dim
     models = []
@@ -150,7 +155,7 @@ def run(x_train, y_train, n_trees, max_tree_depth, pop_size, n_gen, pymoo_elemen
         if np.all(tree_depths==0):
             continue
         else:
-            model = create_estimator(individual_as_centroids, tree_depths)
+            model = create_estimator(individual_as_centroids, tree_depths, tree_params)
             model.fit(x_train, y_train)
 
             models.append(model)

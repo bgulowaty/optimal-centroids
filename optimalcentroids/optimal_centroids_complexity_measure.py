@@ -22,7 +22,7 @@ from mlutils.scikit.competence_region_ensemble import SimpleCompetenceRegionEnse
 
 def create_space_classifier(centroids):
 
-    space_classifier = NearestNeighbors()
+    space_classifier = NearestNeighbors(n_neighbors=len(centroids))
     space_classifier.fit(centroids)
 
     return space_classifier
